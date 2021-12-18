@@ -1,0 +1,6 @@
+aiohttp~=3.7.4.post0
+httpx~=1.0.0b0
+colorama~=0.4.4
+discord~=1.7.3
+gspread~=5.0.0
+python-dateutil~=2.8.1

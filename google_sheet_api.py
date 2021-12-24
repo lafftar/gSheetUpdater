@@ -153,7 +153,7 @@ def update_last_checked():
     clear_sheet(start='J1')
 
     # update and format last updated row
-    main_wks.update(f'J1:J2', [['Last Updated'], [pretty_time]])
+    main_wks.update(f'J1:J2', [['Last Checked'], [pretty_time]])
     main_wks.format(f'J1', {"backgroundColorStyle":
                                 {"rgbColor": {"red": 204 / 255, "green": 204 / 255, "blue": 255 / 255, "alpha": 0.1}}
                             })

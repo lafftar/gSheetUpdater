@@ -1,7 +1,7 @@
 from time import sleep
 
 from email_handler import return_today_emails
-from google_sheet_api import add_many_rows, create_base_sheet, add_color_rule, add_new_row
+from google_sheet_api import add_many_rows, create_base_sheet, add_color_rule, add_new_row, update_last_checked
 from utils.custom_logger import Log
 from utils.root import get_project_root
 from utils.tools import OrderStatusRow
@@ -78,7 +78,7 @@ def monitor_new():
         # write to orders.csv
         with open(f'{get_project_root()}/program_data/orders.csv', 'a') as file:
             file.write(f"{', '.join(row)}\n")
-
+    update_last_checked()
     log.debug('Check Complete')
 
 

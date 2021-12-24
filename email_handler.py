@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta
-from regex import search
+
 import imap_tools
 from imap_tools import MailBox, AND
 from pytz import timezone
+from regex import search
+
 from utils.custom_logger import Log
 from utils.root import get_project_root
-from utils.tools import update_title, OrderStatusRow
+from utils.tools import OrderStatusRow
 
 log = Log('[GMAIL HANDLER]')
 
@@ -15,7 +17,7 @@ class count:
 
 timezone = timezone("America/Toronto")
 
-def login_to_mailbox(_user: str = 'Wisestockx@gmail.com', _passwd: str = 'WiseWin2021!', folder: str = 'Inbox'):
+def login_to_mailbox(_user: str = 'Wisestockx@gmail.com', _passwd: str = 'rqfshscyeufhmeou', folder: str = 'Inbox'):
     mailbox = None
     try:
         mailbox = MailBox('imap.gmail.com').login(_user, _passwd, initial_folder=folder)

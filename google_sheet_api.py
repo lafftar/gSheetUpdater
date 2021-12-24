@@ -185,4 +185,3 @@ def clear_sheet(start='A1'):
                 {"rgbColor": {"red": 255 / 255, "green": 255 / 255, "blue": 255 / 255, "alpha": 0.1}
                  }})
     log.debug('Sheet cleared.')
-

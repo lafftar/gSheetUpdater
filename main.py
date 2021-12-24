@@ -1,83 +1,89 @@
-from datetime import datetime, timedelta
-from regex import search
-import imap_tools
-from imap_tools import MailBox, AND
-from pytz import timezone
+from time import sleep
+
+from email_handler import return_today_emails
+from google_sheet_api import add_many_rows, create_base_sheet, add_color_rule, add_new_row
 from utils.custom_logger import Log
-from utils.tools import update_title
+from utils.root import get_project_root
+from utils.tools import OrderStatusRow
 
-log = Log('[GMAIL HANDLER]')
-
-
-class count:
-    emails_grabbed = 0
-
-timezone = timezone("America/Toronto")
-
-def login_to_mailbox(_user: str = 'Wisestockx@gmail.com', _passwd: str = 'WiseWin2021!', folder: str = 'Inbox'):
-    mailbox = None
-    try:
-        mailbox = MailBox('imap.gmail.com').login(_user, _passwd, initial_folder=folder)
-        log.info(f'Logged in to {_user} on folder {folder}.')
-    except imap_tools.errors.MailboxFolderSelectError:
-        log.warn(f'{folder} folder not found in {_user}')
-    return mailbox
+log = Log('[MONITOR]')
 
 
-def grab_links_from_day(mailbox, _day: int = 0, folder: str = 'Inbox', _user: str = 'Wisestockx@gmail.com'):
-    print(f'DAY GRABBING: {_day}')
-    _day_str = None
-    num_emails_found = 0
+def strip_each(lines): return (line.strip() for line in lines.split(','))
 
-    if _day == 0:
-        _day_str = 'Today'
-    if _day == 1:
-        _day_str = 'Yesterday'
-    if _day > 1:
-        _day_str = f'{_day} days ago'
 
-    printed = False
-    allowed_subjects = ('Delivered', 'Order Confirmed', 'Shipped To StockX',
-                        'Refund Issued', 'Verified & Shipped')
-    for msg in mailbox.fetch(
-            AND(from_='noreply@stockx.com',
-                date=datetime.date(datetime.today() - timedelta(days=_day)),
-                ),
-            mark_seen=False,
-            bulk=True
-    ):
-        if not printed:
-            log.info(f'Currently Grabbing {folder} in {_user} from {_day_str}')
-            printed = True
+def first_load():
+    dop = {}
+    checked = []
 
-        status = None
-        for subj in allowed_subjects:
-            if subj in msg.subject:
-                status = subj
+    with open(f'{get_project_root()}/program_data/orders.csv') as file:
+        src = [OrderStatusRow(*strip_each(line)) for line in file.readlines()[1:]]
 
-        if not status:
+    # populate dop
+    for line in src:
+        if line.status == 'Order Confirmed':
+            dop[line.order_num] = line.status_update_date
+
+    out = []
+    # set status update date for all orders
+    for line in src:
+        checked.append(f'{line.order_num}-{line.status}')
+        out.append(
+            [
+                line.item,
+                line.sku,
+                line.size,
+                line.order_num,
+                dop.get(line.order_num) or 'Not Found',
+                line.purchase_price,
+                line.status,
+                line.status_update_date,
+            ]
+        )
+
+    # write checked to file
+    with open(f'{get_project_root()}/program_data/checked.txt', 'w') as file:
+        file.write('\n'.join(checked))
+
+    # write to sheet in batch
+    create_base_sheet()
+    add_many_rows(out)
+    add_color_rule()
+
+
+def monitor_new():
+    # check for new items from today
+    # check if they're in checked.txt
+    # if they're not in checked.txt, call `add_one` and add to checked.txt, then reload checked.txt
+
+    # load checked files
+    with open(f'{get_project_root()}/program_data/checked.txt') as file:
+        checked = file.read()
+
+    # grab today's emails
+    todays_emails = return_today_emails()
+
+    # check if it's in our checked file
+    for row in todays_emails:
+        if f'{row.order_num}-{row.status}' in checked:
             continue
-        est_time = msg.date.astimezone(timezone).isoformat()
-        item = search(r'<td id=\"productname\"[\s\S]+?\"><a[\s\S]+?\">([\s\S]+?)</a', msg.html).group(1)
-        sku = search(r'\">Style ID:</span>&nbsp;([\s\S]+?)</li>', msg.html).group(1)
-        size = search(r'\">[\s\S]+?Size:</span>&nbsp;([\s\S]+?)</li>', msg.html).group(1)
-        order_number = search(r'\">[\s\S]+?Order number:</span>&nbsp;([\s\S]+?)</li>', msg.html).group(1)
-        # dop = search(r'\">[\s\S]+?Order number:</span>&nbsp;([\s\S]+?)</li>', msg.html).group(1)
-        purchase_price = search(r'\">Total Payment</span></td>[\s\S]+?\">[\s\S]+?\">\$([\s\S]+?)\*</',
-                                msg.html).group(1)
-        num_emails_found += 1
 
-        # total emails grabbed
-        count.emails_grabbed += 1
-        # update_title(f'Emails Grabbed - [{count.emails_grabbed}]')
-        print(status, est_time, item, sku, size, order_number, purchase_price)
+        # add the row
+        add_new_row(row)
 
-    if num_emails_found != 0:
-        log.info(f'Done Grabbing {num_emails_found} Emails. {folder} in {_user} from {_day_str}')
-    else:
-        log.info(f'No Emails Found. {folder} in {_user} from {_day_str}')
+        # write to checked.txt
+        with open(f'{get_project_root()}/program_data/checked.txt', 'a') as file:
+            file.write(f'{row.order_num}-{row.status}\n')
+
+        # write to orders.csv
+        with open(f'{get_project_root()}/program_data/orders.csv', 'a') as file:
+            file.write(f"{', '.join(row)}\n")
+
+    log.debug('Check Complete')
 
 
-mailbox = login_to_mailbox()
-for day in range(100):
-    grab_links_from_day(mailbox, _day=day)
+log.info('Monitor Started')
+while True:
+    monitor_new()
+    log.debug('Sleeping for 10 seconds')
+    sleep(10)

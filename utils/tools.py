@@ -115,7 +115,7 @@ async def send_req(req_obj: functools.partial, num_tries: int = 3) -> \
 
 
 def update_title(terminal_title):
-    bot_name = 'IPChecker'
+    bot_name = 'gSheetUpdater'
     if sys.platform == 'linux':
         print(f'\33]0;[{bot_name}] | {terminal_title}\a', end='', flush=True)
     if sys.platform == 'win32':
@@ -128,7 +128,7 @@ class OrderStatusRow(NamedTuple):
     sku: str
     size: str
     order_num: str
-    date_of_purchase: str
     purchase_price: str
     status: str
     status_update_date: str
+    date_of_purchase: str = 'Not Set'

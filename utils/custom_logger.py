@@ -3,13 +3,15 @@ from datetime import datetime
 from os import makedirs
 
 from utils.root import get_project_root
+from utils.tools import update_title
+
 
 class Log:
     def __init__(self, fmt: str = '[ACC CREATE]'): self.fmt = fmt
-    def info(self, text): logger().info(f'{self.fmt}: {text}')
-    def warn(self, text): logger().warning(f'{self.fmt}: {text}')
-    def debug(self, text): logger().debug(f'{self.fmt}: {text}')
-    def error(self, text): logger().error(f'{self.fmt}: {text}')
+    def info(self, text): logger().info(f'{self.fmt}: {text}') or update_title(f'{self.fmt}: {text}')
+    def warn(self, text): logger().warning(f'{self.fmt}: {text}') or update_title(f'{self.fmt}: {text}')
+    def debug(self, text): logger().debug(f'{self.fmt}: {text}') or update_title(f'{self.fmt}: {text}')
+    def error(self, text): logger().error(f'{self.fmt}: {text}') or update_title(f'{self.fmt}: {text}')
 
 
 class CustomFormatter(logging.Formatter):

@@ -1,5 +1,5 @@
 from time import sleep
-
+from os import system
 import requests
 
 from email_handler import return_today_emails
@@ -84,15 +84,17 @@ def monitor_new():
     log.debug('Check Complete')
 
 
+system('clear')
 while True:
     try:
         log.info('Monitor Started')
         while True:
             monitor_new()
-            log.debug('Sleeping for 10 seconds')
-            sleep(10)
+            log.debug('Sleeping for 5 minutes')
+            sleep(360)
     except requests.exceptions.ConnectionError():
         log.error('Connection Error.')
+        log.info('Restarting Monitor.')
         continue
     except Exception:
         log.exception('Major Error')

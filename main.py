@@ -1,5 +1,7 @@
 from time import sleep
 
+import requests
+
 from email_handler import return_today_emails
 from google_sheet_api import add_many_rows, create_base_sheet, add_color_rule, add_new_row, update_last_checked
 from utils.custom_logger import Log
@@ -82,8 +84,16 @@ def monitor_new():
     log.debug('Check Complete')
 
 
-log.info('Monitor Started')
 while True:
-    monitor_new()
-    log.debug('Sleeping for 10 seconds')
-    sleep(10)
+    try:
+        log.info('Monitor Started')
+        while True:
+            monitor_new()
+            log.debug('Sleeping for 10 seconds')
+            sleep(10)
+    except requests.exceptions.ConnectionError():
+        log.error('Connection Error.')
+        continue
+    except Exception:
+        log.exception('Major Error')
+        break

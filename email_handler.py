@@ -91,8 +91,8 @@ def grab_links_from_day(out: list, _day: int = 0, folder: str = 'Inbox', _user: 
 
 def return_today_emails() -> list[OrderStatusRow]:
     out = []
-    grab_links_from_day(_day=0, out=out)
-    grab_links_from_day(_day=1, out=out)
+    for day in range(3):  # gets last 3 days, jic.
+        grab_links_from_day(_day=day, out=out)
     return out
 
 

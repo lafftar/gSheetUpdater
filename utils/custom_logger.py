@@ -12,6 +12,7 @@ class Log:
     def warn(self, text): logger().warning(f'{self.fmt}: {text}') or update_title(f'{self.fmt}: {text}')
     def debug(self, text): logger().debug(f'{self.fmt}: {text}') or update_title(f'{self.fmt}: {text}')
     def error(self, text): logger().error(f'{self.fmt}: {text}') or update_title(f'{self.fmt}: {text}')
+    def exception(self, text): logger().exception(f'{self.fmt}: {text}')
 
 
 class CustomFormatter(logging.Formatter):

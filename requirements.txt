@@ -6,5 +6,6 @@ gspread~=5.0.0
 python-dateutil~=2.8.1
 regex~=2021.11.10
 pytz~=2021.1
-imap_tools
+requests~=2.26.0
 gspread_formatting
+imap_tools

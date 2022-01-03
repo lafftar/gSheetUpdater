@@ -1,126 +1,129 @@
-import asyncio
-import functools
 import sys
-from asyncio import sleep
-from json import dumps, JSONDecodeError
-from random import randint
-from time import sleep as sync_sleep
-from typing import Union, NamedTuple
+from datetime import datetime
+from json import dumps
+from typing import NamedTuple
 
-import aiohttp
-import httpx
-from aiohttp import client_exceptions
-from colorama import Fore
-
+from utils.custom_logger import Log
 from utils.root import get_project_root
 
 FIRST_PRINT = False
+RANK = {
+    'Refund Issued': 6,
+    'Delivered': 5,
+    'Verified & Shipped': 4,
+    'Arrived At StockX': 3,
+    'Shipped To StockX': 2,
+    'Order Confirmed': 1,
+}
+log = Log('[TOOLS]')
 
 
-def return_android_ua() -> str:
-    platform_version = f'{randint(5, 10)}.0'
-    browser_version = f'{randint(40, 80)}.0'
-    return f"Mozilla/{platform_version} (Android {platform_version}; " \
-           f"Mobile; rv:{browser_version}) Gecko/{browser_version} Firefox/{browser_version}"
+def strip_each(lines): return (line.strip() for line in lines.split(','))
 
 
-def print_req_obj(req: httpx.Request, res: Union[httpx.Response, None] = None, print_now: bool = False) -> str:
-    if res:
-        res.read()
-        req = res.request
-        http_ver = res.http_version
-    else:
-        http_ver = 'HTTP/1.1(Guess.)'
-    req.read()
-    req_str = f'{req.method} {req.url} {http_ver}\n'
-    for key, val in req.headers.items():
-        req_str += f'{key}: {val}\n'
+def add_date_of_purchase(similar_rows: list, dop: dict):
+    """
+    dop[row.order_num] = row.dop
+    Finds the line with `Order Confirmed` as status, makes that that row.dop the dop of all.
+    If it can't find `Order Confirmed`, uses the oldest email.
 
-    if req.content:
-        try:
-            req_str += f'Req Body: {dumps(req.read().decode(), indent=4)}'
-        except JSONDecodeError:
-            req_str += f'Req Body: {req.content}'
-    req_str += '\n'
-    if print_now:
-        print(f'{Fore.LIGHTBLUE_EX}{req_str}')
-    return req_str
-
-
-def print_req_info(res: httpx.Response, print_headers: bool = False, print_body: bool = False):
-    if not res:
-        print('No Response Body')
+    similar_rows: subset of rows from (`orders.csv` + live grab) that have the same order number
+    dop: date_of_purchase dict
+    """
+    if len(similar_rows) == 1:  # if there's only one row, assume this is the first email
+        dop[similar_rows[0].order_num] = similar_rows[0].status_update_date
         return
 
-    with open(f'{get_project_root()}/src.html', mode='w', encoding='utf-8') as file:
-        try:
-            with open(f'{get_project_root()}/src.json', mode='w', encoding='utf-8') as js_file:
-                js_file.write(dumps(res.json(), indent=4))
-                # print('wrote json')
-        except JSONDecodeError:
-            file.write(res.text)
-    if not print_headers:
+    order_confirmed_row: list[OrderStatusRow] = list(filter(lambda row: row.status == 'Order Confirmed', similar_rows))
+    if order_confirmed_row:
+        dop[order_confirmed_row[0].order_num] = order_confirmed_row[0].status_update_date
         return
 
-    req_str = print_req_obj(res.request, res)
+    # `Order Confirmed` not found, find the oldest email, use that as the dop
+    oldest_date = None
+    dt_fmt = '%a %d %b %Y - %I:%M:%S %p'
+    for row in similar_rows:
+        if not oldest_date:
+            oldest_date = datetime.strptime(row.status_update_date, dt_fmt)
+            continue
+        row_date = datetime.strptime(row.status_update_date, dt_fmt)
+        if row_date <= oldest_date:
+            continue
+        oldest_date = row_date
 
-    resp_str = f'{res.http_version} {res.status_code} {res.reason_phrase}\n'
-    for key, val in res.headers.items():
-        resp_str += f'{key}: {val}\n'
-    resp_str += f'Cookie: '
-    for key, val in res.cookies.items():
-        resp_str += f'{key}={val};'
-    resp_str += '\n'
-    if print_body:
-        resp_str += f"Resp Body: {res.text}"
-    resp_str += '\n|\n|'
-
-    sep_ = '-' * 10
-    boundary = '|'
-    boundary += '=' * 100
-    print(boundary)
-    print(f'|{sep_}REQUEST{sep_}')
-    print(req_str)
-    print(f'|{sep_}RESPONSE{sep_}')
-    print(resp_str)
-    print(f'|History: {res.history}')
-    for resp in res.history:
-        print(resp.url, end=',')
-    print()
-    print(boundary)
+    # turn oldest date back into a string, then add it to dop
+    oldest_date = oldest_date.strftime(dt_fmt)
+    dop[similar_rows[0].order_num] = oldest_date
 
 
-async def send_req(req_obj: functools.partial, num_tries: int = 3) -> \
-        Union[httpx.Response, aiohttp.ClientResponse, None]:
+def clean_order_num(similar_rows, all_orders):
     """
-    Central Request Handler. All requests should go through this.
-    :param req_obj:
-    :return:
+    deletes from src directly, makes sure only the highest row is in the final list.
     """
-    for _ in range(num_tries):
-        try:
-            item = await req_obj()
-            return item
-        except (httpx.ConnectTimeout, httpx.ProxyError, httpx.ConnectError,
-                httpx.ReadError, httpx.ReadTimeout, httpx.WriteTimeout, httpx.RemoteProtocolError,
-
-                # aiohttp errors
-                asyncio.exceptions.TimeoutError, client_exceptions.ClientHttpProxyError,
-                client_exceptions.ClientProxyConnectionError,
-                client_exceptions.ClientOSError,
-                client_exceptions.ServerDisconnectedError
-                ):
-            await sleep(1)
-    return
+    highest_row = None
+    for row in similar_rows:
+        if not highest_row:
+            highest_row = row
+            continue
+        # `=`: unlikely, just deletes a duplicate. `<`: deletes the current row if it's of lower status.
+        if RANK[row.status] <= RANK[highest_row.status]:
+            all_orders.remove(row)
+            continue
+        if RANK[row.status] > RANK[highest_row.status]:
+            all_orders.remove(highest_row)
+            highest_row = row
+            continue
 
 
-def update_title(terminal_title):
-    bot_name = 'gSheetUpdater'
-    if sys.platform == 'linux':
-        print(f'\33]0;[{bot_name}] | {terminal_title}\a', end='', flush=True)
-    if sys.platform == 'win32':
-        import ctypes
-        ctypes.windll.kernel32.SetConsoleTitleW(f'[{bot_name}] | {terminal_title}')
+def return_orders() -> list:
+    dop = {}
+    checked = {}
+
+    with open(f'{get_project_root()}/program_data/orders.csv') as file:
+        src = [OrderStatusRow(*strip_each(line)) for line in file.readlines()[1:]
+               if len(list(strip_each(line))) == 8]
+
+    # remove by rank
+    cleaned = {}  # all the order nums we've seen, speeds up iteration to On, where n is the num of order nums
+    for row in src.copy():
+        checked[f'{row.order_num}-{row.status}'] = 1
+        if row.status == 'Order Confirmed':
+            dop[row.order_num] = row.status_update_date
+        if cleaned.get(row.order_num, None):
+            continue
+        # filter returns a generator, then we turn it to a list, runs a fx on every line in an iterable
+        # this also includes the row we're iterating over from src
+        similar_rows = list(filter(lambda line: row.order_num in line, src.copy()))
+
+        add_date_of_purchase(similar_rows, dop)
+
+        # clean the order num
+        if len(similar_rows) > 1:
+            clean_order_num(similar_rows, src)
+
+        # add the order num to `cleaned`
+        cleaned[row.order_num] = 1
+
+    out = []
+    # set status update date for all orders
+    for line in src:
+        out.append(
+            [
+                line.item,
+                line.sku,
+                line.size,
+                line.order_num,
+                dop.get(line.order_num),
+                line.purchase_price,
+                line.status,
+                line.status_update_date,
+            ]
+        )
+    # write checked to file
+    with open(f'{get_project_root()}/program_data/checked.txt', 'w') as file:
+        file.write('\n'.join(checked))
+
+    return out
 
 
 class OrderStatusRow(NamedTuple):
@@ -128,7 +131,11 @@ class OrderStatusRow(NamedTuple):
     sku: str
     size: str
     order_num: str
+    date_of_purchase: str
     purchase_price: str
     status: str
     status_update_date: str
-    date_of_purchase: str = 'Not Set'
+
+
+if __name__ == "__main__":
+    return_orders()

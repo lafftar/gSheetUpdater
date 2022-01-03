@@ -3,11 +3,13 @@ from time import sleep
 
 import gspread
 from dateutil import tz
+from gspread import Cell
 from gspread_formatting import ConditionalFormatRule, get_conditional_format_rules, GridRange, BooleanRule, \
-    BooleanCondition, CellFormat, Color
+    BooleanCondition, CellFormat, Color, Border
 
 from utils.custom_logger import Log
 from utils.root import get_project_root
+from utils.tools import OrderStatusRow, RANK
 
 gc = gspread.service_account(filename=f'{get_project_root()}/program_data/auth.json')
 sh = gc.open_by_url('https://docs.google.com/spreadsheets/d/10XBH2g1b4W0e-QISct4YKTp5nzXy95s6l00Qmh1uJPw/edit#gid=0')
@@ -17,9 +19,9 @@ log = Log('[SHEET HANDLER]')
 
 def create_base_sheet():
     # check if base sheet already made.
-    first_cell = main_wks.row_values(1)
     headers = ['Item', 'SKU', 'Size', 'Order Number', 'Date of Purchase', 'Purchase Price', 'Status',
                'Status Update Date (EST)']
+    first_cell = main_wks.row_values(1)[:len(headers)]
     if first_cell == headers:
         log.debug('Base sheet already exists.')
         return
@@ -51,46 +53,27 @@ def create_base_sheet():
                      }
                      })
     log.debug('Base sheet created.')
-    add_color_rule()
+    add_color_rules()
     update_last_checked()
 
 
-def add_color_rule():
-    delivered = ConditionalFormatRule(
+def return_color_rule(text: str, color: Color):
+    return ConditionalFormatRule(
         ranges=[GridRange.from_a1_range('G1:G5000', main_wks)],
         booleanRule=BooleanRule(
-            condition=BooleanCondition('TEXT_CONTAINS', ['Delivered']),
-            format=CellFormat(backgroundColor=Color(204/255,1,204/255))
+            condition=BooleanCondition('TEXT_CONTAINS', [text]),
+            format=CellFormat(backgroundColor=color)
         )
     )
-    shipped_to_stockx = ConditionalFormatRule(
-        ranges=[GridRange.from_a1_range('G1:G5000', main_wks)],
-        booleanRule=BooleanRule(
-            condition=BooleanCondition('TEXT_CONTAINS', ['Shipped To Stockx']),
-            format=CellFormat(backgroundColor=Color(1, 204 / 255, 1))
-        )
-    )
-    verified_n_shipped = ConditionalFormatRule(
-        ranges=[GridRange.from_a1_range('G1:G5000', main_wks)],
-        booleanRule=BooleanRule(
-            condition=BooleanCondition('TEXT_CONTAINS', ['Verified & Shipped']),
-            format=CellFormat(backgroundColor=Color(153/255, 204 / 255, 1))
-        )
-    )
-    order_confirmed = ConditionalFormatRule(
-        ranges=[GridRange.from_a1_range('G1:G5000', main_wks)],
-        booleanRule=BooleanRule(
-            condition=BooleanCondition('TEXT_CONTAINS', ['Order Confirmed']),
-            format=CellFormat(backgroundColor=Color(1, 1, 204/255))
-        )
-    )
-    refund_issued = ConditionalFormatRule(
-        ranges=[GridRange.from_a1_range('G1:G5000', main_wks)],
-        booleanRule=BooleanRule(
-            condition=BooleanCondition('TEXT_CONTAINS', ['Refund Issued']),
-            format=CellFormat(backgroundColor=Color(1, 102/255, 102/255))
-        )
-    )
+
+
+def add_color_rules():
+    delivered = return_color_rule(text='Delivered', color=Color(204 / 255, 1, 204 / 255))
+    shipped_to_stockx = return_color_rule('Shipped To StockX', Color(1, 204 / 255, 1))
+    verified_n_shipped = return_color_rule('Verified & Shipped', Color(153 / 255, 204 / 255, 1))
+    order_confirmed = return_color_rule('Order Confirmed', Color(1, 1, 204 / 255))
+    refund_issued = return_color_rule('Refund Issued', Color(1, 102 / 255, 102 / 255))
+    arrived_at_stockx = return_color_rule('Arrived At StockX', Color(216 / 255, 1, 166 / 255))
     rules = get_conditional_format_rules(main_wks)
     rules.clear()
     rules.append(delivered)
@@ -98,6 +81,7 @@ def add_color_rule():
     rules.append(verified_n_shipped)
     rules.append(order_confirmed)
     rules.append(refund_issued)
+    rules.append(arrived_at_stockx)
     rules.save()
     log.debug('Color rule added.')
 
@@ -115,8 +99,22 @@ line_border = {
 }
 
 
-def add_new_row(row):
-    main_wks.insert_row(list(row), index=2)
+def add_new_row(new_row: OrderStatusRow):
+    # find row where order number is currently, delete row, insert new row at the top
+    similar_rows: list[Cell] = main_wks.findall(query=new_row.order_num)
+    for cell in similar_rows:
+        old_row = main_wks.get(f'A{cell.row}:H{cell.row}')[0]
+        old_row = OrderStatusRow(*old_row)
+        # delete duplicates before reinserting them
+        # delete all statuses below the status of the new row.
+        if RANK[old_row.status] <= RANK[new_row.status]:
+            main_wks.delete_rows(start_index=cell.row)
+            log.debug(f'Deleted row with order_num: {old_row.order_num} and status: {old_row.status}')
+            continue
+        if RANK[old_row.status] > RANK[new_row.status]:
+            log.debug(f'Old row has a higher status that new row. {old_row.status} > {new_row.status}')
+            continue
+    main_wks.insert_row(list(new_row), index=3)
     # will only work if new rows are added sequentially.
     main_wks.format(f"A3:H3",
                     {'horizontalAlignment': "CENTER",
@@ -125,8 +123,7 @@ def add_new_row(row):
                          "bottom": line_border,
                          "left": line_border,
                          "right": line_border}})
-    log.debug('Row added.')
-    update_last_checked()
+    log.debug('New row added.')
 
 
 def add_many_rows(rows: list[list, ...]):
@@ -174,14 +171,18 @@ def update_last_checked():
     log.debug('Updated last checked.')
 
 
-def clear_sheet(start='A1'):
-    main_wks.batch_clear([f'{start}:K3000'])
-    main_wks.format(f'{start}:K3000', {'borders': {
-            "top": {"style": 'NONE'},
-            "bottom": {"style": 'NONE'},
-            "left": {"style": 'NONE'},
-            "right": {"style": 'NONE'}},
-            "backgroundColorStyle":
-                {"rgbColor": {"red": 255 / 255, "green": 255 / 255, "blue": 255 / 255, "alpha": 0.1}
-                 }})
+def clear_sheet(start='A1', stop='K3000'):
+    main_wks.batch_clear([f'{start}:{stop}'])
+    main_wks.format(f'{start}:{stop}', {'borders': {
+        "top": {"style": 'NONE'},
+        "bottom": {"style": 'NONE'},
+        "left": {"style": 'NONE'},
+        "right": {"style": 'NONE'}},
+        "backgroundColorStyle":
+            {"rgbColor": {"red": 255 / 255, "green": 255 / 255, "blue": 255 / 255, "alpha": 0.1}
+             }})
     log.debug('Sheet cleared.')
+
+
+if __name__ == "__main__":
+    add_color_rules()

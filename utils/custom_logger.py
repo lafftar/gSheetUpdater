@@ -3,7 +3,7 @@ from datetime import datetime
 from os import makedirs
 
 from utils.root import get_project_root
-from utils.tools import update_title
+from utils.terminal import update_title
 
 
 class Log:

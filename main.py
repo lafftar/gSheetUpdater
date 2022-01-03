@@ -1,56 +1,23 @@
-from time import sleep
 from os import system
+from time import sleep
+
 import requests
 
 from email_handler import return_today_emails
-from google_sheet_api import add_many_rows, create_base_sheet, add_color_rule, add_new_row, update_last_checked
+from google_sheet_api import add_many_rows, create_base_sheet, add_color_rules, add_new_row, update_last_checked
 from utils.custom_logger import Log
 from utils.root import get_project_root
-from utils.tools import OrderStatusRow
+from utils.tools import OrderStatusRow, strip_each, return_orders, add_date_of_purchase
 
 log = Log('[MONITOR]')
 
 
-def strip_each(lines): return (line.strip() for line in lines.split(','))
-
-
 def first_load():
-    dop = {}
-    checked = []
-
-    with open(f'{get_project_root()}/program_data/orders.csv') as file:
-        src = [OrderStatusRow(*strip_each(line)) for line in file.readlines()[1:]]
-
-    # populate dop
-    for line in src:
-        if line.status == 'Order Confirmed':
-            dop[line.order_num] = line.status_update_date
-
-    out = []
-    # set status update date for all orders
-    for line in src:
-        checked.append(f'{line.order_num}-{line.status}')
-        out.append(
-            [
-                line.item,
-                line.sku,
-                line.size,
-                line.order_num,
-                dop.get(line.order_num) or 'Not Found',
-                line.purchase_price,
-                line.status,
-                line.status_update_date,
-            ]
-        )
-
-    # write checked to file
-    with open(f'{get_project_root()}/program_data/checked.txt', 'w') as file:
-        file.write('\n'.join(checked))
-
+    out = return_orders()
     # write to sheet in batch
     create_base_sheet()
     add_many_rows(out)
-    add_color_rule()
+    add_color_rules()
 
 
 def monitor_new():
@@ -62,6 +29,16 @@ def monitor_new():
     with open(f'{get_project_root()}/program_data/checked.txt') as file:
         checked = file.read()
 
+    with open(f'{get_project_root()}/program_data/orders.csv') as file:
+        orders = [OrderStatusRow(*strip_each(line)) for line in file.readlines()[1:]
+                  if len(list(strip_each(line))) == 8]
+
+    # populate base dop
+    dop = {}
+    for row in orders:
+        similar_rows = list(filter(lambda line: row.order_num in line, orders))
+        add_date_of_purchase(similar_rows, dop)
+
     # grab today's emails
     todays_emails = return_today_emails()
 
@@ -69,8 +46,22 @@ def monitor_new():
     for row in todays_emails:
         if f'{row.order_num}-{row.status}' in checked:
             continue
+        orders.append(row)
+        # use new row to calculate new dop
+        similar_rows = list(filter(lambda line: row.order_num in line, orders))
+        add_date_of_purchase(similar_rows, dop)
 
         # add the row
+        row = OrderStatusRow(
+            row.item,
+            row.sku,
+            row.size,
+            row.order_num,
+            dop.get(row.order_num),
+            row.purchase_price,
+            row.status,
+            row.status_update_date,
+        )
         add_new_row(row)
 
         # write to checked.txt
@@ -80,22 +71,28 @@ def monitor_new():
         # write to orders.csv
         with open(f'{get_project_root()}/program_data/orders.csv', 'a') as file:
             file.write(f"{', '.join(row)}\n")
+        sleep(5)  # try to avoid 429
     update_last_checked()
     log.debug('Check Complete')
 
 
-system('clear')
-while True:
-    try:
-        log.info('Monitor Started')
-        while True:
-            monitor_new()
-            log.debug('Sleeping for 5 minutes')
-            sleep(360)
-    except requests.exceptions.ConnectionError():
-        log.error('Connection Error.')
-        log.info('Restarting Monitor.')
-        continue
-    except Exception:
-        log.exception('Major Error')
-        break
+def run():
+    system('cls')
+    while True:
+        try:
+            log.info('Monitor Started')
+            while True:
+                monitor_new()
+                log.debug('Sleeping for 5 minutes')
+                sleep(360)
+        except requests.exceptions.ConnectionError:
+            log.error('Connection Error.')
+            log.info('Restarting Monitor.')
+            continue
+        except Exception:
+            log.exception('Major Error')
+            break
+
+
+if __name__ == "__main__":
+    run()

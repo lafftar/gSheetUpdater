@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from json import dumps
 
 import imap_tools
 from imap_tools import MailBox, AND
@@ -30,12 +31,18 @@ def login_to_mailbox(_user: str = 'Wisestockx@gmail.com', _passwd: str = 'rqfshs
 
 
 def grab_links_from_day(mail_box, out: list, _day: int = 0, folder: str = 'Inbox', _user: str = 'Wisestockx@gmail.com'):
-    def return_found(reg, text):
-        found = search(reg, text)
-        if not found:
-            return 'Not Found'
-        else:
-            return found.group(1)
+    def return_found(reg_list: list, text):
+        for reg in reg_list:
+            found = search(reg, text)
+            if found:
+                return found.group(1)
+        log.error('Error Parsing Email. Looks like email format has changed. '
+                  'Message winwinwinwin#0001 on discord.')
+        with open('error_parsing_this_email.html', 'w', encoding='utf-8') as file:
+            file.write(msg.html)
+        input()
+        return 'Not Found'
+
     _day_str = None
     num_emails_found = 0
 
@@ -70,23 +77,34 @@ def grab_links_from_day(mail_box, out: list, _day: int = 0, folder: str = 'Inbox
 
         if not status:
             continue
-        try:
-            est_time = msg.date.astimezone(timezone).strftime('%a %d %b %Y - %I:%M:%S %p')
-            item = return_found(r'<td id=\"productname\"[\s\S]+?\"><a[\s\S]+?\">([\s\S]+?)</a', msg.html)
-            sku = return_found(r'\">Style ID:</span>&nbsp;([\s\S]+?)</li>', msg.html)
-            size = return_found(r'\">[\s\S]+?Size:</span>&nbsp;([\s\S]+?)</li>', msg.html)
-            order_number = return_found(r'\">[\s\S]+?Order number:</span>&nbsp;([\s\S]+?)</li>', msg.html)
-            purchase_price = return_found(r'\">Total Payment</span></td>[\s\S]+?\">[\s\S]+?\">\$([\s\S]+?)\*</',
-                                          msg.html)
-        except AttributeError:
-            log.exception('Attribute Error')
-            with open('src.html', 'w', encoding='utf-8') as file:
-                file.write(msg.html)
-            input('Attribute Error')
+        est_time = msg.date.astimezone(timezone).strftime('%a %d %b %Y - %I:%M:%S %p')
+        item = return_found(
+            [
+                r'<td id=\"productname\"[\s\S]+?\"><a[\s\S]+?\">([\s\S]+?)</a',
+                r'<td class=\"productName\"[\s\S]+?\"><a[\s\S]+?\">([\s\S]+?)</a'
+            ], msg.html)
+        sku = return_found(
+            [
+                r'\">Style ID:</span>&nbsp;([\s\S]+?)</li>',
+                r'\">Style ID:&nbsp;([\s\S]+?)</li>'
+            ], msg.html)
+        size = return_found(
+            [
+                r'\">[\s\S]+?Size:</span>&nbsp;([\s\S]+?)</li>',
+                r'\">[\s\S]+?Size:&nbsp;([\s\S]+?)</li>'
+            ], msg.html)
+        order_number = return_found(
+            [
+                r'\">[\s\S]+?Order number:</span>&nbsp;([\s\S]+?)</li>',
+                r'\">[\s\S]+?Order number:&nbsp;([\s\S]+?)</li>'
+            ], msg.html)
+        purchase_price = return_found(
+            [
+                r'\">Total Payment</span></td>[\s\S]+?\">[\s\S]+?\">\$([\s\S]+?)\*</',
+                r'\">Total Payment</td>[\s\S]+?\">[\s\S]+?([\s\S]+?)\*</'
+            ], msg.html)
         num_emails_found += 1
 
-        # total emails grabbed
-        count.emails_grabbed += 1
         # update_title(f'Emails Grabbed - [{count.emails_grabbed}]')
         row = OrderStatusRow(
             item=item,
@@ -98,7 +116,11 @@ def grab_links_from_day(mail_box, out: list, _day: int = 0, folder: str = 'Inbox
             status=status,
             status_update_date=est_time
         )
+        if row.order_num == 'Not Found':
+            continue
         out.append(row)
+        # total emails grabbed
+        count.emails_grabbed += 1
 
     if num_emails_found != 0:
         log.info(f'Done Grabbing {num_emails_found} Emails. {folder} in {_user} from {_day_str}')
@@ -111,6 +133,7 @@ def return_today_emails() -> list[OrderStatusRow]:
     mail_box = login_to_mailbox()
     for day in range(3):  # gets last 3 days, jic.
         grab_links_from_day(mail_box=mail_box, _day=day, out=out)
+    out.reverse()  # reversing so we start from the oldest.
     return out
 
 
@@ -124,3 +147,11 @@ def grab_all():
 
     with open(f'{get_project_root()}/program_data/orders.csv', 'w') as file:
         file.write('\n'.join(out))
+
+
+if __name__ == "__main__":
+    a = return_today_emails()
+    print(a)
+    for row in a:
+        print(row)
+        print(row.status_update_date)

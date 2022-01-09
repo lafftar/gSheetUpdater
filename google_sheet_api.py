@@ -100,6 +100,7 @@ line_border = {
 
 
 def add_new_row(new_row: OrderStatusRow):
+    flag = False
     # find row where order number is currently, delete row, insert new row at the top
     similar_rows: list[Cell] = main_wks.findall(query=new_row.order_num)
     for cell in similar_rows:
@@ -107,13 +108,20 @@ def add_new_row(new_row: OrderStatusRow):
         old_row = OrderStatusRow(*old_row)
         # delete duplicates before reinserting them
         # delete all statuses below the status of the new row.
-        if RANK[old_row.status] <= RANK[new_row.status]:
+        if RANK[old_row.status] == RANK[new_row.status]:
             main_wks.delete_rows(start_index=cell.row)
-            log.debug(f'Deleted row with order_num: {old_row.order_num} and status: {old_row.status}')
-            continue
-        if RANK[old_row.status] > RANK[new_row.status]:
-            log.debug(f'Old row has a higher status that new row. {old_row.status} > {new_row.status}')
-            continue
+            log.debug(f'Old row `{old_row.order_num}-{old_row.status}` '
+                      f'is same as new row `{new_row.order_num}-{new_row.status}`. Old row deleted.')
+        elif RANK[old_row.status] < RANK[new_row.status]:
+            main_wks.delete_rows(start_index=cell.row)
+            log.debug(f'Old row `{old_row.order_num}-{old_row.status}` '
+                      f'has lower status than new row `{new_row.order_num}-{new_row.status}`. Old row deleted.')
+        elif RANK[old_row.status] > RANK[new_row.status]:
+            log.debug(f'Old row `{old_row.order_num}-{old_row.status}` '
+                      f'has lower status than new row `{new_row.order_num}-{new_row.status}`. Not inserting.')
+            flag = True
+    if flag:
+        return
     main_wks.insert_row(list(new_row), index=3)
     # will only work if new rows are added sequentially.
     main_wks.format(f"A3:H3",
@@ -123,7 +131,7 @@ def add_new_row(new_row: OrderStatusRow):
                          "bottom": line_border,
                          "left": line_border,
                          "right": line_border}})
-    log.debug('New row added.')
+    log.debug(f'New row added. `{new_row.order_num} - {new_row.status}`')
 
 
 def add_many_rows(rows: list[list, ...]):
@@ -185,4 +193,4 @@ def clear_sheet(start='A1', stop='K3000'):
 
 
 if __name__ == "__main__":
-    add_color_rules()
+    main_wks.delete_rows(start_index=18)

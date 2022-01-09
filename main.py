@@ -45,7 +45,9 @@ def monitor_new():
     # check if it's in our checked file
     for row in todays_emails:
         if f'{row.order_num}-{row.status}' in checked:
+            log.debug(f'{row.order_num}-{row.status} - In Checked - {row.status_update_date}')
             continue
+        log.debug(f'{row.order_num}-{row.status} - New - {row.status_update_date}')
         orders.append(row)
         # use new row to calculate new dop
         similar_rows = list(filter(lambda line: row.order_num in line, orders))
@@ -83,14 +85,14 @@ def run():
             log.info('Monitor Started')
             while True:
                 monitor_new()
-                log.debug('Sleeping for 5 minutes')
-                sleep(360)
+                log.debug('Sleeping for 15 minutes')
+                sleep(15 * 60)
         except requests.exceptions.ConnectionError:
             log.error('Connection Error.')
             log.info('Restarting Monitor.')
             continue
         except Exception:
-            log.exception('Major Error')
+            log.exception('Major     Error')
             break
 
 

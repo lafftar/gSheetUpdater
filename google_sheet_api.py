@@ -5,7 +5,7 @@ import gspread
 from dateutil import tz
 from gspread import Cell
 from gspread_formatting import ConditionalFormatRule, get_conditional_format_rules, GridRange, BooleanRule, \
-    BooleanCondition, CellFormat, Color, Border
+    BooleanCondition, CellFormat, Color
 
 from utils.custom_logger import Log
 from utils.root import get_project_root
@@ -193,4 +193,4 @@ def clear_sheet(start='A1', stop='K3000'):
 
 
 if __name__ == "__main__":
-    main_wks.delete_rows(start_index=18)
+    clear_sheet('A3', 'H32')

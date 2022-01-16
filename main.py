@@ -85,8 +85,9 @@ def run():
             log.info('Monitor Started')
             while True:
                 monitor_new()
-                log.debug('Sleeping for 15 minutes')
-                sleep(15 * 60)
+                mins = 1
+                log.debug(f'Sleeping for {mins} minutes')
+                sleep(mins * 60)
         except requests.exceptions.ConnectionError:
             log.error('Connection Error.')
             log.info('Restarting Monitor.')

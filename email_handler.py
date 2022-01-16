@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from json import dumps
+from random import randint
 
 import imap_tools
 from imap_tools import MailBox, AND
@@ -31,11 +31,15 @@ def login_to_mailbox(_user: str = 'Wisestockx@gmail.com', _passwd: str = 'rqfshs
 
 
 def grab_links_from_day(mail_box, out: list, _day: int = 0, folder: str = 'Inbox', _user: str = 'Wisestockx@gmail.com'):
-    def return_found(reg_list: list, text):
+    def return_found(reg_list: list, text, return_not_found: bool = False, msg_date=None):
         for reg in reg_list:
             found = search(reg, text)
             if found:
                 return found.group(1)
+        if return_not_found:
+            j1g = msg.date.astimezone(timezone).strftime('%d/%Y %I/%M')
+            return f"Not Found - {j1g}"
+
         log.error('Error Parsing Email. Looks like email format has changed. '
                   'Message winwinwinwin#0001 on discord.')
         with open('error_parsing_this_email.html', 'w', encoding='utf-8') as file:
@@ -61,7 +65,7 @@ def grab_links_from_day(mail_box, out: list, _day: int = 0, folder: str = 'Inbox
                 date=datetime.date(datetime.today() - timedelta(days=_day)),
                 ),
             mark_seen=False,
-            bulk=True
+            bulk=False
     ):
         if not printed:
             log.info(f'Currently Grabbing {folder} in {_user} from {_day_str}')
@@ -71,6 +75,9 @@ def grab_links_from_day(mail_box, out: list, _day: int = 0, folder: str = 'Inbox
         for subj in allowed_subjects:
             if subj in msg.subject:
                 status = subj
+
+        if not msg.html:
+            return
 
         if 'Update On Your Order Status' in msg.subject:
             status = 'Refund Issued'
@@ -97,12 +104,12 @@ def grab_links_from_day(mail_box, out: list, _day: int = 0, folder: str = 'Inbox
             [
                 r'\">[\s\S]+?Order number:</span>&nbsp;([\s\S]+?)</li>',
                 r'\">[\s\S]+?Order number:&nbsp;([\s\S]+?)</li>'
-            ], msg.html)
+            ], msg.html, return_not_found=True, msg_date=msg.date)
         purchase_price = return_found(
             [
                 r'\">Total Payment</span></td>[\s\S]+?\">[\s\S]+?\">\$([\s\S]+?)\*</',
                 r'\">Total Payment</td>[\s\S]+?\">[\s\S]+?([\s\S]+?)\*</'
-            ], msg.html)
+            ], msg.html, return_not_found=True, msg_date=msg.date)
         num_emails_found += 1
 
         # update_title(f'Emails Grabbed - [{count.emails_grabbed}]')
@@ -119,6 +126,7 @@ def grab_links_from_day(mail_box, out: list, _day: int = 0, folder: str = 'Inbox
         if row.order_num == 'Not Found':
             continue
         out.append(row)
+
         # total emails grabbed
         count.emails_grabbed += 1
 

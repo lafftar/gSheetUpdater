@@ -65,7 +65,7 @@ def grab_links_from_day(mail_box, out: list, _day: int = 0, folder: str = 'Inbox
                 date=datetime.date(datetime.today() - timedelta(days=_day)),
                 ),
             mark_seen=False,
-            bulk=False
+            bulk=True
     ):
         if not printed:
             log.info(f'Currently Grabbing {folder} in {_user} from {_day_str}')

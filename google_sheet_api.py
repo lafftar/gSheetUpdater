@@ -12,7 +12,7 @@ from utils.root import get_project_root
 from utils.tools import OrderStatusRow, RANK
 
 gc = gspread.service_account(filename=f'{get_project_root()}/program_data/auth.json')
-sh = gc.open_by_url('https://docs.google.com/spreadsheets/d/10XBH2g1b4W0e-QISct4YKTp5nzXy95s6l00Qmh1uJPw/edit#gid=0')
+sh = gc.open_by_url('https://docs.google.com/spreadsheets/d/10XBH2g1b4W0e-QISct4YKTp5nzXy95s6l00Qmh1uJPw/')
 main_wks = sh.worksheet('Main')
 log = Log('[SHEET HANDLER]')
 

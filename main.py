@@ -89,7 +89,7 @@ async def run():
             log.info('Monitor Started')
             while True:
                 monitor_new()
-                mins = 1
+                mins = 0.5
                 log.debug(f'Sleeping for {mins} minutes')
                 sleep(mins * 60)
         except requests.exceptions.ConnectionError:

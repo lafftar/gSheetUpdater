@@ -1,3 +1,4 @@
+import imaplib
 from os import system
 from time import sleep
 
@@ -85,16 +86,18 @@ def run():
             log.info('Monitor Started')
             while True:
                 monitor_new()
-                mins = 1
+                mins = 0.5
                 log.debug(f'Sleeping for {mins} minutes')
                 sleep(mins * 60)
         except requests.exceptions.ConnectionError:
             log.error('Connection Error.')
             log.info('Restarting Monitor.')
-            continue
+        except imaplib.IMAP4.abort:
+            log.error('Gmail Error.')
+            log.info('Restarting Monitor.')
         except Exception:
-            log.exception('Major     Error')
-            break
+            log.exception('Major Error')
+            log.info('Restarting Monitor.')
 
 
 if __name__ == "__main__":

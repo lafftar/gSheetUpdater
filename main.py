@@ -7,13 +7,22 @@ import requests
 from discord import Colour
 
 from email_handler import return_today_emails
-from google_sheet_api import add_many_rows, create_base_sheet, add_color_rules, add_new_row, update_last_checked
 from utils.custom_logger import Log
 from utils.root import get_project_root
 from utils.tools import OrderStatusRow, strip_each, return_orders, add_date_of_purchase
 from utils.webhook import send_webhook
 
 log = Log('[MONITOR]')
+
+
+while True:
+    try:
+        from google_sheet_api import add_many_rows, create_base_sheet, add_color_rules, add_new_row, update_last_checked
+        break
+    except Exception:
+        log.exception('Error Importing gSheetAPI')
+        sleep(10)
+        continue
 
 
 def first_load():
@@ -100,14 +109,14 @@ async def run():
             log.exception('Major Error')
             async with aiohttp.ClientSession() as client:
                 await send_webhook(
-                        webhook_url='https://discord.com/api/webhooks/937925424183402546/'
-                                    'ofefABvBFbTxPAMTjoZro6xybTiyzKFjW_Tn1AXAIlKVIQ6kL4BKVkdl50I95h-id9Z3',
-                        _dict={'Error': f'{err}'},
-                        webhook_client=client,
-                        title='WiseGrails gSheetUpdater.',
-                        title_link='https://google.com',
-                        color=Colour.red()
-                    )
+                    webhook_url='https://discord.com/api/webhooks/937925424183402546/'
+                                'ofefABvBFbTxPAMTjoZro6xybTiyzKFjW_Tn1AXAIlKVIQ6kL4BKVkdl50I95h-id9Z3',
+                    _dict={'Error': f'{type(err).__name__}'},
+                    webhook_client=client,
+                    title='WiseGrails gSheetUpdater.',
+                    title_link='https://google.com',
+                    color=Colour.red()
+                )
             continue
 
 

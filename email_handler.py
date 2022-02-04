@@ -90,31 +90,31 @@ def grab_links_from_day(mail_box, out: list, _day: int = 0, folder: str = 'Inbox
                 r'<td id=\"productname\"[\s\S]+?\"><a[\s\S]+?\">([\s\S]+?)</a',
                 r'<td class=\"productName\"[\s\S]+?\"><a[\s\S]+?\">([\s\S]+?)</a'
             ], msg.html)
-        print('grabbing item')
+        # print('grabbing item')
         sku = return_found(
             [
                 r'\">Style ID:</span>&nbsp;([\s\S]+?)</li>',
                 r'\">Style ID:&nbsp;([\s\S]+?)</li>'
             ], msg.html, return_not_found=True)
-        print('grabbing sku')
+        # print('grabbing sku')
         size = return_found(
             [
                 r'\">[\s\S]+?Size:</span>&nbsp;([\s\S]+?)</li>',
                 r'\">[\s\S]+?Size:&nbsp;([\s\S]+?)</li>'
             ], msg.html)
-        print('grabbing size')
+        # print('grabbing size')
         order_number = return_found(
             [
                 r'\">[\s\S]+?Order number:</span>&nbsp;([\s\S]+?)</li>',
                 r'\">[\s\S]+?Order number:&nbsp;([\s\S]+?)</li>'
             ], msg.html, return_not_found=True)
-        print('grabbing order num')
+        # print('grabbing order num')
         purchase_price = return_found(
             [
                 r'\">Total Payment</span></td>[\s\S]+?\">[\s\S]+?\">\$([\s\S]+?)\*</',
                 r'\">Total Payment</td>[\s\S]+?\">[\s\S]+?([\s\S]+?)\*</'
             ], msg.html, return_not_found=True)
-        print('grabbing purchase price')
+        # print('grabbing purchase price')
         num_emails_found += 1
 
         # update_title(f'Emails Grabbed - [{count.emails_grabbed}]')

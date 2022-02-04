@@ -5,7 +5,7 @@ from discord import Colour, Embed, AsyncWebhookAdapter, Webhook
 from utils.custom_logger import logger
 
 
-async def send_webhook(_dict, webhook_url, webhook_client, title, title_link):
+async def send_webhook(_dict, webhook_url, webhook_client, title, title_link, color):
 
     # sending webhook
     webhook = Webhook.from_url(
@@ -13,7 +13,7 @@ async def send_webhook(_dict, webhook_url, webhook_client, title, title_link):
         adapter=AsyncWebhookAdapter(webhook_client))
 
     # create embed
-    embed = Embed(title=title, color=Colour.green(), url=title_link)
+    embed = Embed(title=title, color=color, url=title_link)
     embed.set_footer(text='WINX4 Bots - winwinwinwin#0001',
                      icon_url='https://images6.alphacoders.com/909/thumb-1920-909641.png')
     for key, value in _dict.items():

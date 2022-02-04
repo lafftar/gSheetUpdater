@@ -1,14 +1,17 @@
-import imaplib
+import asyncio
 from os import system
 from time import sleep
 
+import aiohttp
 import requests
+from discord import Colour
 
 from email_handler import return_today_emails
 from google_sheet_api import add_many_rows, create_base_sheet, add_color_rules, add_new_row, update_last_checked
 from utils.custom_logger import Log
 from utils.root import get_project_root
 from utils.tools import OrderStatusRow, strip_each, return_orders, add_date_of_purchase
+from utils.webhook import send_webhook
 
 log = Log('[MONITOR]')
 
@@ -79,26 +82,34 @@ def monitor_new():
     log.debug('Check Complete')
 
 
-def run():
+async def run():
     system('cls')
     while True:
         try:
             log.info('Monitor Started')
             while True:
                 monitor_new()
-                mins = 0.5
+                mins = 1
                 log.debug(f'Sleeping for {mins} minutes')
                 sleep(mins * 60)
         except requests.exceptions.ConnectionError:
             log.error('Connection Error.')
             log.info('Restarting Monitor.')
-        except imaplib.IMAP4.abort:
-            log.error('Gmail Error.')
-            log.info('Restarting Monitor.')
-        except Exception:
+            continue
+        except Exception as err:
             log.exception('Major Error')
-            log.info('Restarting Monitor.')
+            async with aiohttp.ClientSession() as client:
+                await send_webhook(
+                        webhook_url='https://discord.com/api/webhooks/937925424183402546/'
+                                    'ofefABvBFbTxPAMTjoZro6xybTiyzKFjW_Tn1AXAIlKVIQ6kL4BKVkdl50I95h-id9Z3',
+                        _dict={'Error': f'{err}'},
+                        webhook_client=client,
+                        title='WiseGrails gSheetUpdater.',
+                        title_link='https://google.com',
+                        color=Colour.red()
+                    )
+            continue
 
 
 if __name__ == "__main__":
-    run()
+    asyncio.run(run())

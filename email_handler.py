@@ -20,7 +20,7 @@ class count:
 timezone = timezone("America/Toronto")
 
 
-def login_to_mailbox(_user: str = 'Wisestockx@gmail.com', _passwd: str = 'rqfshscyeufhmeou', folder: str = 'Inbox'):
+def login_to_mailbox(_user: str = 'user', _passwd: str = 'passwd', folder: str = 'Inbox'):
     mailbox = None
     try:
         mailbox = MailBox('imap.gmail.com').login(_user, _passwd, initial_folder=folder)

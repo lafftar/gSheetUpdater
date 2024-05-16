@@ -9,5 +9,5 @@ pyinstaller --clean -n gSheetUpdater -i assets/icon.ico --upx-dir C:\Users\lafft
 
 Pull on server:
 ```bash
-git clone https://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@github.com/lafftar/gSheetUpdater.git
+git clone https://passwd@github.com/lafftar/gSheetUpdater.git
 ```
